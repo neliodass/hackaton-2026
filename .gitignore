@@ -18,7 +18,10 @@ build/
 .ruff_cache/
 
 # IDE / editors
-.idea/
+.idea/*
+!.idea/runConfigurations/
+.idea/runConfigurations/*
+!.idea/runConfigurations/*.xml
 .vscode/
 *.suo
 *.user
