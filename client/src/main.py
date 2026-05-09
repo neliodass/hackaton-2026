@@ -44,7 +44,7 @@ def run_update_check(server_url: str, local_version: str, download_dir: Path) ->
     try:
         manifest = fetch_manifest(server_url)
     except Timeout:
-        logger.error("Manifest download timed out after %s seconds", REQUEST_TIMEOUT_SECONDS)
+        logger.error("Manifest download timed out after %s seconds", config.REQUEST_TIMEOUT_SECONDS)
         return 1
     except RequestException as exc:
         logger.error("Cannot connect to server or invalid HTTP response: %s", exc)
@@ -77,7 +77,7 @@ def run_update_check(server_url: str, local_version: str, download_dir: Path) ->
     try:
         download_update_package(str(package_url), output_path)
     except Timeout:
-        logger.error("Package download timed out after %s seconds", REQUEST_TIMEOUT_SECONDS)
+        logger.error("Package download timed out after %s seconds", config.REQUEST_TIMEOUT_SECONDS)
         return 1
     except RequestException as exc:
         logger.error("Package download failed (HTTP/network error): %s", exc)
