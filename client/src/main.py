@@ -7,11 +7,9 @@ import requests
 from packaging import version
 from requests import RequestException, Timeout
 
+import config
 
-DEFAULT_SERVER_URL = "http://127.0.0.1:8000"
-DEFAULT_LOCAL_VERSION = "1.0.0"
 DEFAULT_DOWNLOAD_DIR = Path(__file__).resolve().parent.parent / "downloads"
-REQUEST_TIMEOUT_SECONDS = 10
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,14 +21,14 @@ logger = logging.getLogger("update-client")
 def fetch_manifest(server_url: str) -> dict:
     manifest_url = urljoin(server_url.rstrip("/") + "/", "manifest")
     logger.info("Downloading manifest from %s", manifest_url)
-    response = requests.get(manifest_url, timeout=REQUEST_TIMEOUT_SECONDS)
+    response = requests.get(manifest_url, timeout=config.REQUEST_TIMEOUT_SECONDS)
     response.raise_for_status()
     return response.json()
 
 
 def download_update_package(package_url: str, output_path: Path) -> None:
     logger.info("Downloading update package from %s", package_url)
-    response = requests.get(package_url, stream=True, timeout=REQUEST_TIMEOUT_SECONDS)
+    response = requests.get(package_url, stream=True, timeout=config.REQUEST_TIMEOUT_SECONDS)
     response.raise_for_status()
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -97,8 +95,8 @@ def run_update_check(server_url: str, local_version: str, download_dir: Path) ->
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Secure Software Update Client (MVP)")
-    parser.add_argument("--server-url", default=DEFAULT_SERVER_URL, help="Update server base URL")
-    parser.add_argument("--local-version", default=DEFAULT_LOCAL_VERSION, help="Current local app version")
+    parser.add_argument("--server-url", default=config.SERVER_URL, help="Update server base URL")
+    parser.add_argument("--local-version", default=config.LOCAL_VERSION, help="Current local app version")
     parser.add_argument(
         "--download-dir",
         default=str(DEFAULT_DOWNLOAD_DIR),

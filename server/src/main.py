@@ -7,6 +7,8 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 
+from config import HOST, PORT
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PACKAGE_DIR = BASE_DIR / "packages"
@@ -69,7 +71,7 @@ def ensure_update_package_exists() -> None:
 
 def main() -> None:
     ensure_update_package_exists()
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host=HOST, port=PORT)
 
 
 if __name__ == "__main__":
