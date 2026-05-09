@@ -1,0 +1,32 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments (per component)
+client/venv/
+server/venv/
+.venv/
+venv/
+
+# Build / packaging
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local configuration / secrets
+.env
+config.local.*
+
+# Crypto keys (never commit private keys)
+*.pem
+*.key
+*.p8
+keys/private/
+
+# Server packages (often large binaries)
+server/packages/*.bin
+server/packages/*.zip
