@@ -5,8 +5,13 @@ from packaging import version
 from requests import RequestException, Timeout
 
 import config
-from crypto.verifier import verify_manifest_signature
-from http_client import download_update_package, fetch_manifest, fetch_signature
+from crypto.verifier import verify_manifest_pq_signature, verify_manifest_signature
+from http_client import (
+    download_update_package,
+    fetch_manifest,
+    fetch_pq_signature,
+    fetch_signature,
+)
 
 logger = logging.getLogger("update-client")
 
@@ -14,6 +19,9 @@ logger = logging.getLogger("update-client")
 def run_update_check(server_url: str, local_version: str, download_dir: Path) -> int:
     if not config.EMBEDDED_PUBLIC_KEY:
         logger.error("EMBEDDED_PUBLIC_KEY is not set in config.py — cannot verify manifest")
+        return 1
+    if not config.EMBEDDED_PQ_PUBLIC_KEY_HEX:
+        logger.error("EMBEDDED_PQ_PUBLIC_KEY_HEX is not set in config.py — cannot verify manifest")
         return 1
 
     try:
@@ -38,10 +46,25 @@ def run_update_check(server_url: str, local_version: str, download_dir: Path) ->
         return 1
 
     if not verify_manifest_signature(manifest, signature, config.EMBEDDED_PUBLIC_KEY):
-        logger.error("Manifest signature verification FAILED — aborting update")
+        logger.error("Hybrid signing: Ed25519 verification FAILED — aborting update")
         return 1
 
-    logger.info("Manifest signature verified OK")
+    logger.info("Hybrid signing: Ed25519 manifest signature OK")
+
+    try:
+        pq_sig = fetch_pq_signature(server_url)
+    except Timeout:
+        logger.error("Hybrid signing: ML-DSA signature download timed out after %s seconds", config.REQUEST_TIMEOUT_SECONDS)
+        return 1
+    except RequestException as exc:
+        logger.error("Hybrid signing: cannot download manifest.pq.sig (%s)", exc)
+        return 1
+
+    if not verify_manifest_pq_signature(manifest, pq_sig, config.EMBEDDED_PQ_PUBLIC_KEY_HEX):
+        logger.error("Hybrid signing: ML-DSA verification FAILED — aborting update")
+        return 1
+
+    logger.info("Hybrid signing: PQ ML-DSA manifest signature OK")
 
     remote_version_raw = manifest.get("version")
     package_url = manifest.get("package_url")

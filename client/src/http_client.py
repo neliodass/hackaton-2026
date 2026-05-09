@@ -26,6 +26,14 @@ def fetch_signature(server_url: str) -> bytes:
     return response.content
 
 
+def fetch_pq_signature(server_url: str) -> bytes:
+    sig_url = server_url.rstrip("/") + "/manifest.pq.sig"
+    logger.info("Downloading hybrid ML-DSA manifest signature from %s", sig_url)
+    response = requests.get(sig_url, timeout=config.REQUEST_TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return response.content
+
+
 def download_update_package(
     package_url: str,
     output_path: Path,

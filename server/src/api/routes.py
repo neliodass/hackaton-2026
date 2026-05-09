@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from fastapi.responses import FileResponse, JSONResponse
 
-from config import MANIFEST_PATH, MANIFEST_SIG_PATH, UPDATE_PACKAGE_PATH
+from config import MANIFEST_PATH, MANIFEST_SIG_PATH, MANIFEST_PQ_SIG_PATH, UPDATE_PACKAGE_PATH
 
 router = APIRouter()
 
@@ -23,6 +23,16 @@ async def get_manifest_signature():
     if not MANIFEST_SIG_PATH.exists():
         return JSONResponse(status_code=404, content={"error": "manifest signature not found"})
     return FileResponse(path=MANIFEST_SIG_PATH, media_type="application/octet-stream")
+
+
+@router.get("/manifest.pq.sig")
+async def get_manifest_signature_pq():
+    if not MANIFEST_PQ_SIG_PATH.exists():
+        return JSONResponse(
+            status_code=404,
+            content={"error": "hybrid ML-DSA manifest signature (manifest.pq.sig) not found"},
+        )
+    return FileResponse(path=MANIFEST_PQ_SIG_PATH, media_type="application/octet-stream")
 
 
 @router.get("/update.zip")

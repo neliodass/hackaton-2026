@@ -8,7 +8,7 @@ MANIFEST_SIG_PATH = Path(__file__).resolve().parent.parent / "server" / "package
 
 def run_keygen() -> None:
     if PRIVATE_KEY_PATH.exists():
-        confirm = input(f"Key already exists at {PRIVATE_KEY_PATH}. Overwrite? [y/N]: ")
+        confirm = input(f"A key already exists at {PRIVATE_KEY_PATH}. Overwrite? [y/N]: ")
         if confirm.strip().lower() != "y":
             print("Aborted.")
             return
@@ -20,5 +20,5 @@ def run_keygen() -> None:
         MANIFEST_SIG_PATH.unlink()
         print(f"Removed stale signature: {MANIFEST_SIG_PATH}")
 
-    print(f"\nPrivate key: {PRIVATE_KEY_PATH}")
+    print(f"\nPrivate key (Ed25519 PEM): {PRIVATE_KEY_PATH}")
     print(f"\nPaste this into client/src/config.py as EMBEDDED_PUBLIC_KEY:\n\n{hex_key}\n")

@@ -1,6 +1,7 @@
 import json
 
 from cryptography.exceptions import InvalidSignature
+from dilithium_py.ml_dsa import ML_DSA_65
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 
@@ -20,3 +21,12 @@ def verify_manifest_signature(manifest: dict, signature: bytes, hex_public_key: 
         return True
     except InvalidSignature:
         return False
+
+
+def verify_manifest_pq_signature(manifest: dict, signature: bytes, public_key_hex: str) -> bool:
+    try:
+        pk = bytes.fromhex(public_key_hex.strip())
+    except ValueError:
+        return False
+    data = canonical_manifest_bytes(manifest)
+    return bool(ML_DSA_65.verify(pk, data, signature, ctx=b""))

@@ -9,12 +9,13 @@ from cryptography.hazmat.primitives.serialization import (
     PublicFormat,
 )
 
-KEYS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "keys"
-PRIVATE_KEY_PATH = KEYS_DIR / "signing_key.pem"
+_KEYS_ROOT = Path(__file__).resolve().parent.parent.parent.parent / "keys"
+KEYS_PRIVATE_DIR = _KEYS_ROOT / "private"
+PRIVATE_KEY_PATH = KEYS_PRIVATE_DIR / "ed25519_signing_sk.pem"
 
 
 def generate_keys(password: bytes | None = None) -> str:
-    KEYS_DIR.mkdir(parents=True, exist_ok=True)
+    KEYS_PRIVATE_DIR.mkdir(parents=True, exist_ok=True)
 
     private_key = Ed25519PrivateKey.generate()
 
