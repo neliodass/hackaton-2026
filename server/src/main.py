@@ -1,7 +1,6 @@
 import logging
 from pathlib import Path
 from time import perf_counter
-from zipfile import ZIP_DEFLATED, ZipFile
 
 import uvicorn
 from fastapi import FastAPI, Request
@@ -14,7 +13,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 PACKAGE_DIR = BASE_DIR / "packages"
 MANIFEST_PATH = PACKAGE_DIR / "manifest.json"
 UPDATE_PACKAGE_PATH = PACKAGE_DIR / "update.zip"
-RELEASE_NOTES_PATH = PACKAGE_DIR / "release_notes.txt"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -60,17 +58,7 @@ async def get_update_package():
     return FileResponse(path=UPDATE_PACKAGE_PATH, media_type="application/zip")
 
 
-def ensure_update_package_exists() -> None:
-    if UPDATE_PACKAGE_PATH.exists() or not RELEASE_NOTES_PATH.exists():
-        return
-
-    with ZipFile(UPDATE_PACKAGE_PATH, mode="w", compression=ZIP_DEFLATED) as zip_handle:
-        zip_handle.write(RELEASE_NOTES_PATH, arcname=RELEASE_NOTES_PATH.name)
-    logger.info("Created default update package at %s", UPDATE_PACKAGE_PATH)
-
-
 def main() -> None:
-    ensure_update_package_exists()
     uvicorn.run(app, host=HOST, port=PORT)
 
 

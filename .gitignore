@@ -42,9 +42,11 @@ config.local.*
 *.p8
 keys/private/
 
-# Server packages (often large binaries)
+# Server packages: ignore stray binaries; ZIP bundles (e.g., update.zip) are versioned
 server/packages/*.bin
 server/packages/*.zip
+
+!server/packages/update.zip
 
 # OS files
 .DS_Store
