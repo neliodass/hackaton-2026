@@ -8,6 +8,7 @@ from packaging import version
 from requests import RequestException, Timeout
 
 import config
+from crypto.verifier import verify_manifest_signature
 
 DEFAULT_DOWNLOAD_DIR = Path(__file__).resolve().parent.parent / "downloads"
 
@@ -40,7 +41,19 @@ def download_update_package(package_url: str, output_path: Path) -> None:
     logger.info("Update package saved to %s", output_path)
 
 
+def fetch_signature(server_url: str) -> bytes:
+    sig_url = server_url.rstrip("/") + "/manifest.sig"
+    logger.info("Downloading manifest signature from %s", sig_url)
+    response = requests.get(sig_url, timeout=config.REQUEST_TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return response.content
+
+
 def run_update_check(server_url: str, local_version: str, download_dir: Path) -> int:
+    if not config.EMBEDDED_PUBLIC_KEY:
+        logger.error("EMBEDDED_PUBLIC_KEY is not set in public_key.py — cannot verify manifest")
+        return 1
+
     try:
         manifest = fetch_manifest(server_url)
     except Timeout:
@@ -52,6 +65,21 @@ def run_update_check(server_url: str, local_version: str, download_dir: Path) ->
     except ValueError as exc:
         logger.error("Manifest is not valid JSON: %s", exc)
         return 1
+
+    try:
+        signature = fetch_signature(server_url)
+    except Timeout:
+        logger.error("Signature download timed out after %s seconds", config.REQUEST_TIMEOUT_SECONDS)
+        return 1
+    except RequestException as exc:
+        logger.error("Cannot download manifest signature: %s", exc)
+        return 1
+
+    if not verify_manifest_signature(manifest, signature, config.EMBEDDED_PUBLIC_KEY):
+        logger.error("Manifest signature verification FAILED — aborting update")
+        return 1
+
+    logger.info("Manifest signature verified OK")
 
     remote_version_raw = manifest.get("version")
     package_url = manifest.get("package_url")
