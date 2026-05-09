@@ -3,7 +3,7 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Virtual environments (per component)
+# Virtual environments
 client/venv/
 server/venv/
 .venv/
@@ -16,6 +16,21 @@ build/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# IDE / editors
+.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# .NET build artifacts
+bin/
+obj/
+
+# Logs
+*.log
 
 # Local configuration / secrets
 .env
@@ -30,3 +45,7 @@ keys/private/
 # Server packages (often large binaries)
 server/packages/*.bin
 server/packages/*.zip
+
+# OS files
+.DS_Store
+Thumbs.db
