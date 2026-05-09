@@ -3,3 +3,5 @@ uvicorn
 click
 cryptography
 pydantic
+semgrep
+bandit

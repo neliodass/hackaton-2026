@@ -305,6 +305,62 @@ Agent powinien wygenerować `README.md` zawierający:
 
 ---
 
+## Narzędzia bezpieczeństwa – analiza statyczna
+
+### Bandit – analiza bezpieczeństwa kodu Python
+
+**Kiedy używać:** za każdym razem gdy dodajesz nową bibliotekę do projektu lub integrujesz zewnętrzny moduł. Bandit wykrywa typowe podatności w kodzie Pythona (hardcoded secrets, niebezpieczne wywołania, problemy z kryptografią).
+
+**Jak uruchomić:**
+
+```bash
+# Skanowanie całego projektu
+bandit -r server/src/ client/src/
+
+# Skanowanie tylko serwera
+bandit -r server/src/
+
+# Skanowanie tylko klienta
+bandit -r client/src/
+
+# Raport w formacie JSON
+bandit -r server/src/ client/src/ -f json -o bandit-report.json
+```
+
+**Interpretacja wyników:**
+- `HIGH severity` – należy naprawić przed mergem
+- `MEDIUM severity` – należy ocenić i udokumentować wyjątek jeśli akceptowalny
+- `LOW severity` – informacyjne, można pominąć jeśli świadomie
+
+---
+
+### Semgrep – analiza wzorców i reguł bezpieczeństwa
+
+**Kiedy używać:** przy każdym pushowaniu nowego featura (przed otwarciem PR lub przed mergem do `main`). Semgrep sprawdza kod pod kątem znanych wzorców podatności oraz wymuszonych reguł projektu.
+
+**Jak uruchomić:**
+
+```bash
+# Skanowanie z domyślnym zestawem reguł bezpieczeństwa Python
+semgrep --config=p/python server/src/ client/src/
+
+# Reguły specyficzne dla kryptografii
+semgrep --config=p/cryptography server/src/ client/src/
+
+# Reguły OWASP
+semgrep --config=p/owasp-top-ten server/src/ client/src/
+
+# Skanowanie całego projektu, wszystkie reguły naraz
+semgrep --config=p/python --config=p/cryptography server/src/ client/src/
+
+# Raport JSON
+semgrep --config=p/python server/src/ client/src/ --json -o semgrep-report.json
+```
+
+**Uwaga dla agenta:** Semgrep wymaga konta (bezpłatne) do pobierania reguł z registry (`p/...`). Alternatywnie można użyć reguł lokalnych lub `--config=auto` dla automatycznego doboru reguł bez logowania.
+
+---
+
 ## Czego agent nie powinien robić
 
 - Nie commitować żadnych kluczy prywatnych ani pliku `.env` z sekretami
