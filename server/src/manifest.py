@@ -6,6 +6,7 @@ import requests
 
 from config import (
     MANIFEST_PATH,
+    MANIFEST_PQ_SIG_PATH,
     MANIFEST_SIG_PATH,
     SIGNING_MACHINE_URL,
     UPDATE_PACKAGE_PATH,
@@ -31,6 +32,32 @@ def compute_package_hashes() -> dict:
     }
 
 
+def _request_signature(endpoint: str, sig_path, manifest: dict, label: str) -> None:
+    try:
+        response = requests.post(
+            f"{SIGNING_MACHINE_URL}{endpoint}",
+            json=manifest,
+            timeout=10,
+        )
+        response.raise_for_status()
+    except requests.ConnectionError:
+        logger.warning(
+            "Signing machine not reachable at %s — running without fresh %s signature",
+            SIGNING_MACHINE_URL,
+            label,
+        )
+        return
+    except requests.HTTPError as exc:
+        logger.error("Signing machine returned error for %s: %s", label, exc)
+        return
+    except requests.Timeout:
+        logger.error("Signing machine request timed out for %s", label)
+        return
+
+    sig_path.write_bytes(response.content)
+    logger.info("%s manifest signed, signature saved to %s", label, sig_path)
+
+
 def request_signature_from_signing_machine() -> None:
     if not MANIFEST_PATH.exists():
         return
@@ -51,32 +78,14 @@ def request_signature_from_signing_machine() -> None:
     else:
         logger.warning("update.zip not found — sha256/size_bytes not added to manifest")
 
-    if (
-        MANIFEST_SIG_PATH.exists()
-        and MANIFEST_SIG_PATH.stat().st_mtime >= MANIFEST_PATH.stat().st_mtime
-    ):
-        logger.info("Manifest signature is up to date")
-        return
+    manifest_mtime = MANIFEST_PATH.stat().st_mtime
 
-    try:
-        response = requests.post(
-            f"{SIGNING_MACHINE_URL}/sign",
-            json=manifest,
-            timeout=10,
-        )
-        response.raise_for_status()
-    except requests.ConnectionError:
-        logger.warning(
-            "Signing machine not reachable at %s — running without fresh signature",
-            SIGNING_MACHINE_URL,
-        )
-        return
-    except requests.HTTPError as exc:
-        logger.error("Signing machine returned error: %s", exc)
-        return
-    except requests.Timeout:
-        logger.error("Signing machine request timed out")
-        return
+    if not (MANIFEST_SIG_PATH.exists() and MANIFEST_SIG_PATH.stat().st_mtime >= manifest_mtime):
+        _request_signature("/sign", MANIFEST_SIG_PATH, manifest, "Ed25519")
+    else:
+        logger.info("Ed25519 manifest signature is up to date")
 
-    MANIFEST_SIG_PATH.write_bytes(response.content)
-    logger.info("Manifest signed by signing machine, signature saved to %s", MANIFEST_SIG_PATH)
+    if not (MANIFEST_PQ_SIG_PATH.exists() and MANIFEST_PQ_SIG_PATH.stat().st_mtime >= manifest_mtime):
+        _request_signature("/sign-pq", MANIFEST_PQ_SIG_PATH, manifest, "ML-DSA-65")
+    else:
+        logger.info("ML-DSA-65 manifest signature is up to date")

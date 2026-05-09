@@ -37,7 +37,6 @@ def fetch_pq_signature(server_url: str) -> bytes:
 def download_update_package(
     package_url: str,
     output_path: Path,
-    expected_sha256: str,
     expected_size_bytes: int,
     chunk_hashes: list | None = None,
     chunk_size: int = 1024 * 1024,

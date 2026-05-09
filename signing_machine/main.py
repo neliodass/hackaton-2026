@@ -21,5 +21,9 @@ PORT = int(os.environ.get("SIGNING_MACHINE_PORT", "9000"))
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "keygen":
         run_keygen()
+    elif len(sys.argv) > 1:
+        print(f"Unknown command: {sys.argv[1]}")
+        print("Usage: main.py [keygen]")
+        sys.exit(1)
     else:
         uvicorn.run(app, host=HOST, port=PORT)

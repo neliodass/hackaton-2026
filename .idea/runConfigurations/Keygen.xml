@@ -6,6 +6,7 @@
     <option name="PARENT_ENVS" value="true" />
     <envs>
       <env name="PYTHONUNBUFFERED" value="1" />
+      <env name="PYTHONPATH" value="$PROJECT_DIR$/server/src;$PROJECT_DIR$/signing_machine" />
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="SDK_NAME" value="Python 3.12 (hackaton-2026)" />
