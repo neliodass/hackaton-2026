@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import logging
 from pathlib import Path
 from urllib.parse import urljoin
@@ -27,18 +28,90 @@ def fetch_manifest(server_url: str) -> dict:
     return response.json()
 
 
-def download_update_package(package_url: str, output_path: Path) -> None:
+def download_update_package(
+    package_url: str,
+    output_path: Path,
+    expected_sha256: str,
+    expected_size_bytes: int,
+    chunk_hashes: list | None = None,
+    chunk_size: int = 1024 * 1024,
+    progress_queue=None,
+) -> str:
+    """Download to .tmp, compute SHA-256 streamingly. Returns actual hex SHA-256."""
+    size_limit = int(expected_size_bytes * 1.1)
+    tmp_path = output_path.parent / (output_path.name + ".tmp")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
     logger.info("Downloading update package from %s", package_url)
-    response = requests.get(package_url, stream=True, timeout=config.REQUEST_TIMEOUT_SECONDS)
+    response = requests.get(
+        package_url,
+        stream=True,
+        timeout=config.REQUEST_TIMEOUT_SECONDS,
+        verify=True,
+    )
     response.raise_for_status()
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("wb") as file_handle:
-        for chunk in response.iter_content(chunk_size=8192):
-            if chunk:
-                file_handle.write(chunk)
+    content_length = response.headers.get("Content-Length")
+    if content_length is not None and int(content_length) > size_limit:
+        logger.warning("[!] Server reports unexpected size. Aborting.")
+        raise RuntimeError("Content-Length exceeds allowed size")
 
-    logger.info("Update package saved to %s", output_path)
+    full_hasher = hashlib.sha256()
+    cumulative_bytes = 0
+    buffer = bytearray()
+    chunk_index = 0
+
+    try:
+        with tmp_path.open("wb") as fh:
+            for http_chunk in response.iter_content(chunk_size=8192):
+                if not http_chunk:
+                    continue
+                cumulative_bytes += len(http_chunk)
+                if cumulative_bytes > size_limit:
+                    logger.warning("[!] Server reports unexpected size. Aborting.")
+                    raise RuntimeError("Downloaded size exceeds allowed size")
+                full_hasher.update(http_chunk)
+                fh.write(http_chunk)
+                if progress_queue is not None:
+                    progress_queue.put(cumulative_bytes)
+
+                if chunk_hashes is not None:
+                    buffer.extend(http_chunk)
+                    while len(buffer) >= chunk_size:
+                        segment = bytes(buffer[:chunk_size])
+                        buffer = buffer[chunk_size:]
+                        actual = hashlib.sha256(segment).hexdigest()
+                        if actual != chunk_hashes[chunk_index]:
+                            logger.warning(
+                                "[!] SECURITY: Chunk %d hash mismatch. Expected %s, got %s. Aborting.",
+                                chunk_index,
+                                chunk_hashes[chunk_index],
+                                actual,
+                            )
+                            raise RuntimeError(f"Chunk {chunk_index} hash mismatch")
+                        logger.debug("Chunk %d OK (%s)", chunk_index, actual[:16])
+                        chunk_index += 1
+
+            if chunk_hashes is not None and buffer:
+                segment = bytes(buffer)
+                actual = hashlib.sha256(segment).hexdigest()
+                if actual != chunk_hashes[chunk_index]:
+                    logger.warning(
+                        "[!] SECURITY: Chunk %d hash mismatch. Expected %s, got %s. Aborting.",
+                        chunk_index,
+                        chunk_hashes[chunk_index],
+                        actual,
+                    )
+                    raise RuntimeError(f"Chunk {chunk_index} hash mismatch")
+                logger.debug("Chunk %d OK (%s)", chunk_index, actual[:16])
+
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+    mb = cumulative_bytes / (1024 * 1024)
+    logger.info("[+] Downloaded %.2f MB", mb)
+    return full_hasher.hexdigest()
 
 
 def fetch_signature(server_url: str) -> bytes:
@@ -89,6 +162,15 @@ def run_update_check(server_url: str, local_version: str, download_dir: Path) ->
         logger.error("Manifest is missing required fields: version and package_url")
         return 1
 
+    expected_sha256 = manifest.get("sha256")
+    expected_size_bytes = manifest.get("size_bytes")
+
+    if not expected_sha256 or not expected_size_bytes:
+        logger.error(
+            "Manifest is missing required security fields: sha256 and/or size_bytes — aborting"
+        )
+        return 1
+
     try:
         remote_version = version.parse(str(remote_version_raw))
         current_version = version.parse(local_version)
@@ -102,22 +184,49 @@ def run_update_check(server_url: str, local_version: str, download_dir: Path) ->
         return 0
 
     output_path = download_dir / package_name
+    tmp_path = output_path.parent / (output_path.name + ".tmp")
+
+    chunk_hashes = manifest.get("chunk_hashes")
+    chunk_size = manifest.get("chunk_size", 1024 * 1024)
+    if chunk_hashes:
+        logger.info("Chunk verification enabled (%d chunks, %d B each)", len(chunk_hashes), chunk_size)
+
     try:
-        download_update_package(str(package_url), output_path)
+        actual_hash = download_update_package(
+            str(package_url),
+            output_path,
+            expected_sha256=expected_sha256,
+            expected_size_bytes=expected_size_bytes,
+            chunk_hashes=chunk_hashes,
+            chunk_size=chunk_size,
+        )
     except Timeout:
         logger.error("Package download timed out after %s seconds", config.REQUEST_TIMEOUT_SECONDS)
         return 1
+    except RuntimeError as exc:
+        logger.error("Package download aborted: %s", exc)
+        return 1
     except RequestException as exc:
         logger.error("Package download failed (HTTP/network error): %s", exc)
-        return 1
-    except FileNotFoundError:
-        logger.error("Cannot save update package - output path not found")
+        tmp_path.unlink(missing_ok=True)
         return 1
     except OSError as exc:
         logger.error("Cannot save update package: %s", exc)
+        tmp_path.unlink(missing_ok=True)
         return 1
 
-    logger.info("Update downloaded successfully")
+    if actual_hash != expected_sha256:
+        logger.warning(
+            "[!] SECURITY: Hash mismatch. Expected %s, got %s. Possible tampering. Aborting.",
+            expected_sha256,
+            actual_hash,
+        )
+        tmp_path.unlink(missing_ok=True)
+        return 1
+
+    logger.info("[+] Hash verified: %s", actual_hash)
+    tmp_path.replace(output_path)
+    logger.info("Update downloaded successfully to %s", output_path)
     return 0
 
 
