@@ -2,7 +2,6 @@ import json
 import logging
 from pathlib import Path
 from time import perf_counter
-from zipfile import ZIP_DEFLATED, ZipFile
 
 import requests
 import uvicorn
@@ -16,7 +15,6 @@ PACKAGE_DIR = BASE_DIR / "packages"
 MANIFEST_PATH = PACKAGE_DIR / "manifest.json"
 MANIFEST_SIG_PATH = PACKAGE_DIR / "manifest.sig"
 UPDATE_PACKAGE_PATH = PACKAGE_DIR / "update.zip"
-RELEASE_NOTES_PATH = PACKAGE_DIR / "release_notes.txt"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -111,7 +109,6 @@ def request_signature_from_signing_machine() -> None:
 
 
 def main() -> None:
-    ensure_update_package_exists()
     request_signature_from_signing_machine()
     uvicorn.run(app, host=HOST, port=PORT)
 
