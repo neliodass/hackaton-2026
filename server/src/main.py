@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -79,6 +80,44 @@ def ensure_update_package_exists() -> None:
 def request_signature_from_signing_machine() -> None:
     if not MANIFEST_PATH.exists():
         return
+
+    manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+
+    if UPDATE_PACKAGE_PATH.exists():
+        CHUNK_SIZE = 1024 * 1024  # 1 MB
+        full_hasher = hashlib.sha256()
+        chunk_hashes = []
+
+        with UPDATE_PACKAGE_PATH.open("rb") as fh:
+            while True:
+                chunk = fh.read(CHUNK_SIZE)
+                if not chunk:
+                    break
+                full_hasher.update(chunk)
+                chunk_hashes.append(hashlib.sha256(chunk).hexdigest())
+
+        computed_sha256 = full_hasher.hexdigest()
+        computed_size = UPDATE_PACKAGE_PATH.stat().st_size
+
+        if (
+            manifest.get("sha256") != computed_sha256
+            or manifest.get("size_bytes") != computed_size
+            or manifest.get("chunk_hashes") != chunk_hashes
+        ):
+            manifest["sha256"] = computed_sha256
+            manifest["size_bytes"] = computed_size
+            manifest["chunk_size"] = CHUNK_SIZE
+            manifest["chunk_hashes"] = chunk_hashes
+            MANIFEST_PATH.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+            logger.info(
+                "Updated manifest: sha256=%s size_bytes=%d chunks=%d",
+                computed_sha256,
+                computed_size,
+                len(chunk_hashes),
+            )
+    else:
+        logger.warning("update.zip not found — sha256/size_bytes not added to manifest")
+
     if (
         MANIFEST_SIG_PATH.exists()
         and MANIFEST_SIG_PATH.stat().st_mtime >= MANIFEST_PATH.stat().st_mtime
@@ -86,7 +125,6 @@ def request_signature_from_signing_machine() -> None:
         logger.info("Manifest signature is up to date")
         return
 
-    manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     try:
         response = requests.post(
             f"{SIGNING_MACHINE_URL}/sign",
@@ -95,7 +133,10 @@ def request_signature_from_signing_machine() -> None:
         )
         response.raise_for_status()
     except requests.ConnectionError:
-        logger.warning("Signing machine not reachable at %s — running without fresh signature", SIGNING_MACHINE_URL)
+        logger.warning(
+            "Signing machine not reachable at %s — running without fresh signature",
+            SIGNING_MACHINE_URL,
+        )
         return
     except requests.HTTPError as exc:
         logger.error("Signing machine returned error: %s", exc)
