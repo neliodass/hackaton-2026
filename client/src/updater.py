@@ -105,7 +105,6 @@ def run_update_check(server_url: str, local_version: str, download_dir: Path) ->
         actual_hash = download_update_package(
             str(package_url),
             output_path,
-            expected_sha256=expected_sha256,
             expected_size_bytes=expected_size_bytes,
             chunk_hashes=chunk_hashes,
             chunk_size=chunk_size,
