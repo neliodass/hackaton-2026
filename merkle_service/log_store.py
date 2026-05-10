@@ -7,15 +7,22 @@ from config import LOG_PATH
 _lock = threading.Lock()
 
 
+_EMPTY = {"entries": []}
+
+
 def _ensure() -> None:
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if not LOG_PATH.exists():
-        LOG_PATH.write_text(json.dumps({"entries": []}), encoding="utf-8")
+    if not LOG_PATH.exists() or LOG_PATH.stat().st_size == 0:
+        LOG_PATH.write_text(json.dumps(_EMPTY), encoding="utf-8")
 
 
 def load_log() -> dict:
     _ensure()
-    return json.loads(LOG_PATH.read_text(encoding="utf-8"))
+    try:
+        return json.loads(LOG_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        LOG_PATH.write_text(json.dumps(_EMPTY), encoding="utf-8")
+        return {"entries": []}
 
 
 def save_log(log: dict) -> None:

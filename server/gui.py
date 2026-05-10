@@ -71,9 +71,27 @@ class _ServerProcess:
     def running(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
 
+    @staticmethod
+    def _free_port(port: int) -> None:
+        """Kill any process already listening on *port* so uvicorn can bind."""
+        import socket
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex(("127.0.0.1", port)) != 0:
+                return  # port already free
+        if sys.platform == "win32":
+            subprocess.run(  # nosec B603 B607
+                ["powershell", "-Command",
+                 f"Get-NetTCPConnection -LocalPort {port} -EA SilentlyContinue"
+                 f" | ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force -EA SilentlyContinue }}"],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+        else:
+            subprocess.run(["fuser", "-k", f"{port}/tcp"], check=False)  # nosec B603 B607
+
     def start(self, host: str, port: int, log_cb=None) -> None:
         if self.running:
             return
+        self._free_port(port)
         self._log_cb = log_cb
         env = os.environ.copy()
         env["UPDATE_SERVER_HOST"] = host
@@ -659,10 +677,15 @@ class App(tk.Tk):
 
     def _stop_server(self) -> None:
         _srv.stop()
-        self._btn_start.configure(state="normal")
         self._btn_stop.configure(state="disabled")
-        self._set_status("● Zatrzymany", self.FG_DIM)
+        self._set_status("● Zatrzymywanie…", self.ORANGE)
         logging.info("Server stopped.")
+        # Wait for OS to release the port before re-enabling Start
+        self.after(2000, self._on_stop_complete)
+
+    def _on_stop_complete(self) -> None:
+        self._btn_start.configure(state="normal")
+        self._set_status("● Zatrzymany", self.FG_DIM)
 
     # ── Add version ───────────────────────────────────────────────────────────
     def _add_version(self) -> None:

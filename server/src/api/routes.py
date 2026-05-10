@@ -115,10 +115,8 @@ async def get_sig_pq(release_id: str):
 
 @router.get("/cert/{release_id}")
 async def get_cert(release_id: str):
-    path = VERSIONS_DIR / release_id / "signing_cert.json"
-    if path.exists():
-        return FileResponse(path=path, media_type="application/json")
-    # Fall back to the global cert fetched by the server at startup
+    # Always serve the global cert (kept fresh at server startup via signing machine).
+    # Per-version certs become stale after root key rotation, so we never prefer them.
     if SIGNING_CERT_PATH.exists():
         return FileResponse(path=SIGNING_CERT_PATH, media_type="application/json")
     return JSONResponse(status_code=404, content={"error": "signing cert not found"})

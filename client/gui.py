@@ -88,12 +88,13 @@ def verify_manifest(manifest: dict, keys: dict, log_fn=None) -> bool:
     cert_body = {k: v for k, v in cert.items() if k != 'root_signatures'}
     cert_data = _canonical(cert_body)
 
+    ed_sig_hex = sigs.get('ed25519', '')
     try:
         root_pub = Ed25519PublicKey.from_public_bytes(bytes.fromhex(root_ed_hex))
-        root_pub.verify(bytes.fromhex(sigs['ed25519']), cert_data)
+        root_pub.verify(bytes.fromhex(ed_sig_hex), cert_data)
         _log('  Cert Ed25519 (root→cert): OK', 'ok')
     except Exception as exc:
-        _log(f'  [!] Cert Ed25519 weryfikacja FAILED: {exc}', 'err')
+        _log(f'  [!] Cert Ed25519 weryfikacja FAILED: {type(exc).__name__}: {exc}', 'err')
         return False
 
     # ── Verify cert with root ML-DSA key ────────────────────────────────────
@@ -103,7 +104,6 @@ def verify_manifest(manifest: dict, keys: dict, log_fn=None) -> bool:
         mldsa_sig_bytes = bytes.fromhex(mldsa_root_sig)
         _log(f'  ML-DSA root key size: {len(mldsa_key_bytes)} B, sig size: {len(mldsa_sig_bytes)} B', 'dim')
 
-        # Try ML_DSA_65 first, fall back to ML_DSA_87 if key size matches
         from dilithium_py.ml_dsa import ML_DSA_87
         if len(mldsa_key_bytes) == 2592:
             ok = ML_DSA_87.verify(mldsa_key_bytes, cert_data, mldsa_sig_bytes, ctx=b'')
