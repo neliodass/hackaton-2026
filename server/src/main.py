@@ -1,10 +1,6 @@
 import logging
 
-import uvicorn
-
-from app import app
-from config import HOST, PORT
-from manifest import request_signature_from_signing_machine
+from cli import interactive_menu
 
 logging.basicConfig(
     level=logging.INFO,
@@ -13,8 +9,7 @@ logging.basicConfig(
 
 
 def main() -> None:
-    request_signature_from_signing_machine()
-    uvicorn.run(app, host=HOST, port=PORT)
+    interactive_menu()
 
 
 if __name__ == "__main__":
