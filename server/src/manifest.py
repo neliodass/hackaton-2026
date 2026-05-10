@@ -8,6 +8,7 @@ from config import (
     MANIFEST_PATH,
     MANIFEST_PQ_SIG_PATH,
     MANIFEST_SIG_PATH,
+    SIGNING_CERT_PATH,
     SIGNING_MACHINE_URL,
     UPDATE_PACKAGE_PATH,
 )
@@ -58,6 +59,20 @@ def _request_signature(endpoint: str, sig_path, manifest: dict, label: str) -> N
     logger.info("%s manifest signed, signature saved to %s", label, sig_path)
 
 
+def _fetch_signing_cert() -> None:
+    try:
+        response = requests.get(f"{SIGNING_MACHINE_URL}/signing-cert", timeout=10)
+        response.raise_for_status()
+    except requests.ConnectionError:
+        logger.warning("Signing machine not reachable — signing cert not fetched")
+        return
+    except (requests.HTTPError, requests.Timeout) as exc:
+        logger.error("Failed to fetch signing cert: %s", exc)
+        return
+    SIGNING_CERT_PATH.write_text(response.text, encoding="utf-8")
+    logger.info("Signing certificate saved to %s", SIGNING_CERT_PATH)
+
+
 def request_signature_from_signing_machine() -> None:
     if not MANIFEST_PATH.exists():
         return
@@ -89,3 +104,5 @@ def request_signature_from_signing_machine() -> None:
         _request_signature("/sign-pq", MANIFEST_PQ_SIG_PATH, manifest, "ML-DSA-65")
     else:
         logger.info("ML-DSA-65 manifest signature is up to date")
+
+    _fetch_signing_cert()

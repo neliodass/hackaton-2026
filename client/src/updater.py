@@ -5,11 +5,17 @@ from packaging import version
 from requests import RequestException, Timeout
 
 import config
-from crypto.verifier import verify_manifest_pq_signature, verify_manifest_signature
+from crypto.verifier import (
+    is_cert_time_valid,
+    verify_manifest_pq_signature,
+    verify_manifest_signature,
+    verify_signing_cert,
+)
 from http_client import (
     download_update_package,
     fetch_manifest,
     fetch_pq_signature,
+    fetch_signing_cert,
     fetch_signature,
 )
 
@@ -17,13 +23,22 @@ logger = logging.getLogger("update-client")
 
 
 def run_update_check(server_url: str, local_version: str, download_dir: Path) -> int:
-    if not config.EMBEDDED_PUBLIC_KEY:
-        logger.error("EMBEDDED_PUBLIC_KEY is not set in config.py — cannot verify manifest")
+    if not config.EMBEDDED_ROOT_PUBLIC_KEY:
+        logger.error(
+            "EMBEDDED_ROOT_PUBLIC_KEY is not set — run 'python -m yubikey_mock keygen' "
+            "and paste keys/root/root_ed25519_pub.hex into config.py (or env var)"
+        )
         return 1
-    if not config.EMBEDDED_PQ_PUBLIC_KEY_HEX:
-        logger.error("EMBEDDED_PQ_PUBLIC_KEY_HEX is not set in config.py — cannot verify manifest")
+    if not config.EMBEDDED_ROOT_PQ_PUBLIC_KEY_HEX:
+        logger.error(
+            "EMBEDDED_ROOT_PQ_PUBLIC_KEY_HEX is not set — run 'python -m yubikey_mock keygen' "
+            "and paste keys/root/root_mldsa_pub.hex into config.py (or env var)"
+        )
         return 1
 
+    # ------------------------------------------------------------------
+    # 1. Fetch manifest
+    # ------------------------------------------------------------------
     try:
         manifest = fetch_manifest(server_url)
     except Timeout:
@@ -36,6 +51,43 @@ def run_update_check(server_url: str, local_version: str, download_dir: Path) ->
         logger.error("Manifest is not valid JSON: %s", exc)
         return 1
 
+    # ------------------------------------------------------------------
+    # 2. Fetch + verify signing certificate (root key → signing key)
+    # ------------------------------------------------------------------
+    try:
+        cert = fetch_signing_cert(server_url)
+    except Timeout:
+        logger.error("Signing cert download timed out after %s seconds", config.REQUEST_TIMEOUT_SECONDS)
+        return 1
+    except RequestException as exc:
+        logger.error("Cannot download signing certificate: %s", exc)
+        return 1
+
+    if not verify_signing_cert(cert, config.EMBEDDED_ROOT_PUBLIC_KEY, config.EMBEDDED_ROOT_PQ_PUBLIC_KEY_HEX):
+        logger.error("Root key verification FAILED — signing certificate is not trusted. Aborting.")
+        return 1
+    logger.info("Signing certificate: root signatures OK")
+
+    if not is_cert_time_valid(cert):
+        logger.error(
+            "Signing certificate is expired or not yet valid (valid_from=%s valid_to=%s). Aborting.",
+            cert.get("valid_from"),
+            cert.get("valid_to"),
+        )
+        return 1
+    logger.info("Signing certificate: validity period OK (%s → %s)", cert["valid_from"], cert["valid_to"])
+
+    signing_pubkey = cert.get("signing_pubkey", {})
+    signing_ed_pub = signing_pubkey.get("ed25519", "")
+    signing_pq_pub = signing_pubkey.get("mldsa65", "")
+
+    if not signing_ed_pub or not signing_pq_pub:
+        logger.error("Signing certificate is missing signing_pubkey fields. Aborting.")
+        return 1
+
+    # ------------------------------------------------------------------
+    # 3. Fetch + verify manifest signatures (signing key → manifest)
+    # ------------------------------------------------------------------
     try:
         signature = fetch_signature(server_url)
     except Timeout:
@@ -45,27 +97,28 @@ def run_update_check(server_url: str, local_version: str, download_dir: Path) ->
         logger.error("Cannot download manifest signature: %s", exc)
         return 1
 
-    if not verify_manifest_signature(manifest, signature, config.EMBEDDED_PUBLIC_KEY):
-        logger.error("Hybrid signing: Ed25519 verification FAILED — aborting update")
+    if not verify_manifest_signature(manifest, signature, signing_ed_pub):
+        logger.error("Ed25519 manifest verification FAILED — aborting update")
         return 1
-
-    logger.info("Hybrid signing: Ed25519 manifest signature OK")
+    logger.info("Manifest: Ed25519 signature OK")
 
     try:
         pq_sig = fetch_pq_signature(server_url)
     except Timeout:
-        logger.error("Hybrid signing: ML-DSA signature download timed out after %s seconds", config.REQUEST_TIMEOUT_SECONDS)
+        logger.error("ML-DSA signature download timed out after %s seconds", config.REQUEST_TIMEOUT_SECONDS)
         return 1
     except RequestException as exc:
-        logger.error("Hybrid signing: cannot download manifest.pq.sig (%s)", exc)
+        logger.error("Cannot download manifest.pq.sig: %s", exc)
         return 1
 
-    if not verify_manifest_pq_signature(manifest, pq_sig, config.EMBEDDED_PQ_PUBLIC_KEY_HEX):
-        logger.error("Hybrid signing: ML-DSA verification FAILED — aborting update")
+    if not verify_manifest_pq_signature(manifest, pq_sig, signing_pq_pub):
+        logger.error("ML-DSA manifest verification FAILED — aborting update")
         return 1
+    logger.info("Manifest: ML-DSA signature OK")
 
-    logger.info("Hybrid signing: PQ ML-DSA manifest signature OK")
-
+    # ------------------------------------------------------------------
+    # 4. Version check
+    # ------------------------------------------------------------------
     remote_version_raw = manifest.get("version")
     package_url = manifest.get("package_url")
     package_name = manifest.get("package_name", "update.zip")
@@ -93,6 +146,9 @@ def run_update_check(server_url: str, local_version: str, download_dir: Path) ->
         logger.info("No update required")
         return 0
 
+    # ------------------------------------------------------------------
+    # 5. Download + verify package
+    # ------------------------------------------------------------------
     output_path = download_dir / package_name
     tmp_path = output_path.parent / (output_path.name + ".tmp")
     chunk_hashes = manifest.get("chunk_hashes")
