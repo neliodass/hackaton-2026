@@ -19,6 +19,10 @@ pozostawienia śladu w modelu zagrożeń projektu.
 
 Aplikacja działa zarówno na Windowsie, jak i na Linuxie, korzysta z Hardware Security Module i symuluje użycie TPM.
 
+<img width="1188" height="862" alt="serwer_new_update" src="https://github.com/user-attachments/assets/16ddd94f-0dfb-456c-a3a3-34668b44061c" />
+
+<img width="1188" height="862" alt="client_update_download" src="https://github.com/user-attachments/assets/87914846-983c-4718-9954-c5c89ab4d986" />
+
 ## Jakie są główne ataki/problemy na jakie jest narażona nasza aplikacja?
 
 - **Tampering** — atakujący modyfikuje paczkę update'u w transporcie albo na serwerze. Zapobieganie: “SHA-256 hash” paczki jest częścią podpisanego manifestu, a klient liczy hash pobranego pliku i porównuje.
