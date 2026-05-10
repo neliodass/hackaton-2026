@@ -1,7 +1,17 @@
+import json
+
 from fastapi import APIRouter
 from fastapi.responses import FileResponse, JSONResponse
 
-from config import MANIFEST_PATH, MANIFEST_SIG_PATH, MANIFEST_PQ_SIG_PATH, SIGNING_CERT_PATH, UPDATE_PACKAGE_PATH
+from config import (
+    LATEST_POINTER_PATH,
+    MANIFEST_PATH,
+    MANIFEST_PQ_SIG_PATH,
+    MANIFEST_SIG_PATH,
+    SIGNING_CERT_PATH,
+    UPDATE_PACKAGE_PATH,
+    VERSIONS_DIR,
+)
 
 router = APIRouter()
 
@@ -47,3 +57,49 @@ async def get_update_package():
     if not UPDATE_PACKAGE_PATH.exists():
         return JSONResponse(status_code=404, content={"error": "update package not found"})
     return FileResponse(path=UPDATE_PACKAGE_PATH, media_type="application/zip")
+
+
+# ── Versioned release endpoints ──────────────────────────────────────────────
+
+@router.get("/latest")
+async def get_latest():
+    if not LATEST_POINTER_PATH.exists():
+        return JSONResponse(status_code=404, content={"error": "no releases available yet"})
+    pointer = json.loads(LATEST_POINTER_PATH.read_text(encoding="utf-8"))
+    release_id = pointer.get("id")
+    manifest_path = VERSIONS_DIR / release_id / "manifest.json"
+    if not manifest_path.exists():
+        return JSONResponse(status_code=404, content={"error": "latest manifest not found"})
+    return FileResponse(path=manifest_path, media_type="application/json")
+
+
+@router.get("/binary/{release_id}")
+async def get_binary(release_id: str):
+    path = VERSIONS_DIR / release_id / "update.txt"
+    if not path.exists():
+        return JSONResponse(status_code=404, content={"error": "binary not found"})
+    return FileResponse(path=path, media_type="application/octet-stream")
+
+
+@router.get("/sig/{release_id}")
+async def get_sig(release_id: str):
+    path = VERSIONS_DIR / release_id / "manifest.sig"
+    if not path.exists():
+        return JSONResponse(status_code=404, content={"error": "signature not found"})
+    return FileResponse(path=path, media_type="application/octet-stream")
+
+
+@router.get("/sig-pq/{release_id}")
+async def get_sig_pq(release_id: str):
+    path = VERSIONS_DIR / release_id / "manifest.pq.sig"
+    if not path.exists():
+        return JSONResponse(status_code=404, content={"error": "PQ signature not found"})
+    return FileResponse(path=path, media_type="application/octet-stream")
+
+
+@router.get("/cert/{release_id}")
+async def get_cert(release_id: str):
+    path = VERSIONS_DIR / release_id / "signing_cert.json"
+    if not path.exists():
+        return JSONResponse(status_code=404, content={"error": "signing cert not found"})
+    return FileResponse(path=path, media_type="application/json")

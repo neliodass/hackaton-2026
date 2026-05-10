@@ -4,6 +4,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 SERVER_URL = os.environ.get("UPDATE_SERVER_URL", "https://127.0.0.1:8000")
+MERKLE_SERVICE_URL = os.environ.get("MERKLE_SERVICE_URL", "http://127.0.0.1:9001")
 LOCAL_VERSION = os.environ.get("UPDATE_LOCAL_VERSION", "1.0.0")
 REQUEST_TIMEOUT_SECONDS = int(os.environ.get("UPDATE_REQUEST_TIMEOUT", "10"))
 

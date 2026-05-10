@@ -3,8 +3,10 @@ import sys
 import uvicorn
 
 from app import app
+from cli import interactive_menu
 from config import HOST, PORT, TLS_CERT_PATH, TLS_KEY_PATH
 from manifest import request_signature_from_signing_machine
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,6 +39,7 @@ def main() -> None:
         ssl_certfile=str(TLS_CERT_PATH),
         ssl_keyfile=str(TLS_KEY_PATH),
     )
+    interactive_menu()
 
 
 if __name__ == "__main__":

@@ -58,6 +58,61 @@ def fetch_signing_cert(server_url: str) -> dict:
     return response.json()
 
 
+def fetch_latest_manifest(server_url: str) -> dict:
+    url = server_url.rstrip("/") + "/latest"
+    logger.info("Fetching latest manifest from %s", url)
+    response = requests.get(url, timeout=config.REQUEST_TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return response.json()
+
+
+def fetch_versioned_signature(server_url: str, release_id: str) -> bytes:
+    url = server_url.rstrip("/") + f"/sig/{release_id}"
+    logger.info("Downloading Ed25519 signature for release %s", release_id)
+    response = requests.get(url, timeout=config.REQUEST_TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return response.content
+
+
+def fetch_versioned_pq_signature(server_url: str, release_id: str) -> bytes:
+    url = server_url.rstrip("/") + f"/sig-pq/{release_id}"
+    logger.info("Downloading ML-DSA signature for release %s", release_id)
+    response = requests.get(url, timeout=config.REQUEST_TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return response.content
+
+
+def fetch_versioned_cert(server_url: str, release_id: str) -> dict:
+    url = server_url.rstrip("/") + f"/cert/{release_id}"
+    logger.info("Downloading signing cert for release %s", release_id)
+    response = requests.get(url, timeout=config.REQUEST_TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return response.json()
+
+
+def fetch_merkle_proof(merkle_url: str, release_id: str) -> dict:
+    url = merkle_url.rstrip("/") + f"/proof/{release_id}"
+    logger.info("Fetching Merkle proof for release %s", release_id)
+    response = requests.get(url, timeout=config.REQUEST_TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return response.json()
+
+
+def download_binary(
+    server_url: str,
+    release_id: str,
+    output_path: Path,
+    expected_size_bytes: int,
+    chunk_hashes: list | None = None,
+    chunk_size: int = 1024 * 1024,
+    progress_queue=None,
+) -> str:
+    url = server_url.rstrip("/") + f"/binary/{release_id}"
+    return download_update_package(
+        url, output_path, expected_size_bytes, chunk_hashes, chunk_size, progress_queue
+    )
+
+
 def download_update_package(
     package_url: str,
     output_path: Path,
