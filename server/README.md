@@ -1,6 +1,6 @@
 # Update Server
 
-Serwer aktualizacji oparty na FastAPI. Serwuje manifest, podpis i paczki aktualizacji przez HTTP.
+Serwer aktualizacji oparty na FastAPI. Serwuje manifest, podpis i paczki przez **HTTPS** (TLS, certyfikat lokalny w `certs/` — pierwszy start może sam wygenerować pliki).
 
 ## Wymagania
 
@@ -15,7 +15,7 @@ Odpal profil **Server** w PyCharm, lub:
 python server/src/main.py
 ```
 
-Domyślnie nasłuchuje na `http://127.0.0.1:8000`. Zmiana przez env var:
+Domyślnie nasłuchuje na `https://127.0.0.1:8000`. Zmiana hosta/portu przez env var:
 ```
 UPDATE_SERVER_HOST=0.0.0.0
 UPDATE_SERVER_PORT=8000
