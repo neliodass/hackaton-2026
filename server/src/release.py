@@ -1,8 +1,7 @@
 import hashlib
 import json
 import logging
-import random
-import string
+import secrets
 import uuid
 from pathlib import Path
 
@@ -80,17 +79,37 @@ def _register_leaf(release_id: str, merkle_hash: str) -> None:
         logger.error("Failed to register Merkle leaf: %s", exc)
 
 
-def create_new_release(version: str) -> None:
+def create_new_release(
+    version: str,
+    source_file: Path | None = None,
+    text_content: str | None = None,
+) -> None:
     release_id = str(uuid.uuid4())
     version_dir = VERSIONS_DIR / release_id
     version_dir.mkdir(parents=True, exist_ok=True)
 
-    # Generate simulated update file
-    random_content = "".join(random.choices(string.ascii_letters + string.digits, k=2048))
-    file_content = f"Version: {version}\nID: {release_id}\n\n{random_content}\n"
-    update_path = version_dir / "update.txt"
-    update_path.write_text(file_content, encoding="utf-8")
-    logger.info("Generated update.txt (%d bytes)", len(file_content))
+    if source_file is not None:
+        # Copy the provided file into the version directory
+        import shutil
+        dest = version_dir / source_file.name
+        shutil.copy2(source_file, dest)
+        update_path = dest
+        package_filename = source_file.name
+        logger.info("Copied source file %s (%d bytes)", source_file.name, update_path.stat().st_size)
+    elif text_content is not None:
+        # Write user-supplied text content
+        update_path = version_dir / "update.txt"
+        update_path.write_text(text_content, encoding="utf-8")
+        package_filename = "update.txt"
+        logger.info("Written text content to update.txt (%d bytes)", len(text_content))
+    else:
+        # Generate simulated update file
+        random_content = secrets.token_hex(1024)
+        file_content = f"Version: {version}\nID: {release_id}\n\n{random_content}\n"
+        update_path = version_dir / "update.txt"
+        update_path.write_text(file_content, encoding="utf-8")
+        package_filename = "update.txt"
+        logger.info("Generated update.txt (%d bytes)", len(file_content))
 
     # Compute hashes
     hashes = _compute_file_hashes(update_path)
@@ -99,7 +118,7 @@ def create_new_release(version: str) -> None:
     manifest: dict = {
         "id": release_id,
         "version": version,
-        "package_name": "update.txt",
+        "package_name": package_filename,
         "package_url": f"http://{HOST}:{PORT}/binary/{release_id}",
         **hashes,
     }
