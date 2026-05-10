@@ -31,8 +31,8 @@ def _list_versions() -> None:
     if LATEST_POINTER_PATH.exists():
         try:
             latest_id = json.loads(LATEST_POINTER_PATH.read_text(encoding="utf-8")).get("id")
-        except Exception:
-            pass
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Could not read latest.json: %s", exc)
 
     entries = []
     for version_dir in sorted(VERSIONS_DIR.iterdir()):
@@ -43,7 +43,8 @@ def _list_versions() -> None:
             continue
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except Exception:
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Skipping %s — cannot read manifest: %s", version_dir.name, exc)
             continue
         entries.append((version_dir, manifest))
 

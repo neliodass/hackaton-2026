@@ -24,6 +24,42 @@ from version_state import read_installed_version, write_installed_version
 
 logger = logging.getLogger("update-client")
 
+_PREVIEW_BYTES = 512  # how many bytes to hex-dump for binary files
+
+
+def _preview_file(path: Path, package_name: str) -> None:
+    """Log a human-readable preview of the downloaded file."""
+    try:
+        size = path.stat().st_size
+        raw = path.read_bytes()
+    except OSError as exc:
+        logger.warning("Cannot read downloaded file for preview: %s", exc)
+        return
+
+    logger.info("=== Podgląd: %s (%d bajtów) ===", package_name, size)
+
+    # Try UTF-8 text first
+    try:
+        text = raw.decode("utf-8")
+        for line in text.splitlines():
+            logger.info("  %s", line)
+        logger.info("=== Koniec pliku ===")
+        return
+    except UnicodeDecodeError:
+        pass
+
+    # Binary fallback: hex dump first _PREVIEW_BYTES bytes
+    chunk = raw[:_PREVIEW_BYTES]
+    logger.info("  [plik binarny — hex dump pierwszych %d B]", len(chunk))
+    for offset in range(0, len(chunk), 16):
+        row = chunk[offset:offset + 16]
+        hex_part = " ".join(f"{b:02x}" for b in row)
+        asc_part = "".join(chr(b) if 0x20 <= b < 0x7F else "." for b in row)
+        logger.info("  %04x  %-47s  |%s|", offset, hex_part, asc_part)
+    if size > _PREVIEW_BYTES:
+        logger.info("  ... (%d bajtów pominięto)", size - _PREVIEW_BYTES)
+    logger.info("=== Koniec podglądu ===")
+
 
 def _check_root_keys() -> bool:
     if not config.EMBEDDED_ROOT_PUBLIC_KEY:
@@ -249,7 +285,12 @@ def run_update_check(server_url: str, local_version: str, download_dir: Path) ->
     tmp_path.replace(output_path)
 
     # ------------------------------------------------------------------
-    # 9. Save new version to state
+    # 9. Preview downloaded file
+    # ------------------------------------------------------------------
+    _preview_file(output_path, package_name)
+
+    # ------------------------------------------------------------------
+    # 10. Save new version to state
     # ------------------------------------------------------------------
     write_installed_version(str(remote_ver))
     print(f"\n[+] Update successful! Installed version: {remote_ver}")
