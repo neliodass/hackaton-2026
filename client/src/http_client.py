@@ -34,6 +34,14 @@ def fetch_pq_signature(server_url: str) -> bytes:
     return response.content
 
 
+def fetch_signing_cert(server_url: str) -> dict:
+    url = server_url.rstrip("/") + "/signing-cert"
+    logger.info("Downloading signing certificate from %s", url)
+    response = requests.get(url, timeout=config.REQUEST_TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return response.json()
+
+
 def download_update_package(
     package_url: str,
     output_path: Path,

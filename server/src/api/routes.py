@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from fastapi.responses import FileResponse, JSONResponse
 
-from config import MANIFEST_PATH, MANIFEST_SIG_PATH, MANIFEST_PQ_SIG_PATH, UPDATE_PACKAGE_PATH
+from config import MANIFEST_PATH, MANIFEST_SIG_PATH, MANIFEST_PQ_SIG_PATH, SIGNING_CERT_PATH, UPDATE_PACKAGE_PATH
 
 router = APIRouter()
 
@@ -33,6 +33,13 @@ async def get_manifest_signature_pq():
             content={"error": "hybrid ML-DSA manifest signature (manifest.pq.sig) not found"},
         )
     return FileResponse(path=MANIFEST_PQ_SIG_PATH, media_type="application/octet-stream")
+
+
+@router.get("/signing-cert")
+async def get_signing_cert():
+    if not SIGNING_CERT_PATH.exists():
+        return JSONResponse(status_code=404, content={"error": "signing certificate not found"})
+    return FileResponse(path=SIGNING_CERT_PATH, media_type="application/json")
 
 
 @router.get("/update.zip")
