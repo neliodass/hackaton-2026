@@ -1,6 +1,61 @@
-# Secure Software Update System
+# UPDT Secure
 
 Monorepo dla projektu konkursowego Kościuszkon 2026 (Honeywell #1).
+
+## Opis
+**UPDT Secure** to narzędzie pozwalające na bezpieczne dostarczanie aktualizacji oprogramowania do użytkowników końcowych. 
+Składa się z trzech głównych elementów: serwera dystrybucji (udostępnia manifesty i pakiety), klienta desktopowego (interfejs graficzny i 
+wiersz poleceń) oraz serwisu certyfikującego (odpowiedzialnego za zaufaną tożsamość podmiotu, który autoryzuje wydania).
+
+Projekt adresuje sytuację, w której atakujący może wpływać na sieć, podszywać się pod infrastrukturę lub dążyć do kompromitacji materiałów 
+kryptograficznych używanych przy update’ach. Modeluje zagrożenia typowe dla rzeczywistych łańcuchów dystrybucji: podsłuch i podmiana ruchu (MITM), 
+fałszywe lub zmodyfikowane binaria, wymuszenie instalacji starszej wersji z lukami bezpieczeństwa (rollback), freeze attacks (utrzymywanie użytkownika 
+na przestarzałym „najnowszym” updacie) oraz scenariusze celowanego ataku na supply chain.
+
+Klient weryfikuje spójność i autentyczność każdego wydania w oparciu o jawnie zdefiniowany łańcuch zaufania - od kluczy zaufania osadzonych po stronie klienta, 
+przez certyfikowany okres ważności uprawnień podmiotu podpisującego, aż po kryptograficzne dowody powiązania manifestu z konkretnym pakietem. Ważną rolę pełnią 
+też mechanizmy transparentności jak Transparency Log, które utrudniają ciche wprowadzanie update’ów do poszczególnych użytkowników lub cofanie wersji bez 
+pozostawienia śladu w modelu zagrożeń projektu.
+
+Aplikacja działa zarówno na Windowsie, jak i na Linuxie, korzysta z Hardware Security Module i symuluje użycie TPM.
+
+## Jakie są główne ataki/problemy na jakie jest narażona nasza aplikacja?
+
+- **Tampering** — atakujący modyfikuje paczkę update'u w transporcie albo na serwerze. Zapobieganie: “SHA-256 hash” paczki jest częścią podpisanego manifestu, a klient liczy hash pobranego pliku i porównuje.
+- **Forgery** — atakujący próbuje wyprodukować własny "official update". Zapobieganie: podpis Ed25519 manifestu za pomocą klucza, którego atakujący nie ma. Klient weryfikuje kluczem publicznym (który jest embedded).
+- **MITM** — atakujący przechwytuje ruch sieciowy. Zapobieganie warstwowe: HTTPS na transport + podpisy niezależne od TLS. Te dwie rzeczy razem, bo sam TLS to za mało, gdyż skompromitowany serwer też korzysta z TLS.
+- **Downgrade / rollback** — atakujący serwuje starą, ważnie podpisaną wersję z luką (kiedyś wydaliśmy update, który był dobrze podpisany, zweryfikowany itp., ale miał lukę. Ktoś chce wgrać ten stary update, żeby wykorzystać lukę). Obrona: klient pamięta swoją aktualną wersję i odrzuca manifesty z wersją niższą lub równą.
+- **Freeze attack** — atakujący serwuje stary, legalnie podpisany manifest w nieskończoność, blokując dostarczenie patcha bezpieczeństwa (spami starym updatem). Obrona: pole released_at w manifeście, klient odrzuca manifesty starsze niż próg (np. 30 dni).
+- **Compromised update server** — serwer zostaje zhakowany. Obrona: klucz prywatny nie żyje na serwerze, więc atakujący nie może wyprodukować ważnych podpisów. Rzeczy na serwerze są już podpisane, a nie serwer je podpisuje, innymi  słowy - serwer tylko trzyma rzeczy, a nie je weryfikuje. Może najwyżej serwować stare legalne pliki — ale to łapią mechanizmy powyżej.
+- **Corrupted state** — update przerywa się w połowie (brak prądu, brak miejsca). Obrona: pobieranie do pliku tymczasowego, weryfikacja przed rename, atomic apply.
+
+## Zaimplementowane mechanizmy
+- **Asymetryczna kryptografia**, hybrydowe podpisy cyfrowe za pomocą algorytmu klasycznego Ed25519 oraz algorytmu Post Quantum Cryptography ML-DSA-65 do weryfikacji tożsamości nadawcy,
+- **Hardware Security Module** - fizyczny YubiKey trzymany offline. Używany rzadko, do podpisywania kluczy efemerycznych,
+- **Klucze efemeryczne**, wymieniane co określony czas, aby zapobiegać przyszłym atakom “harvest now, decrypt later” i łagodzić efekty wycieku klucza,
+- **Hash functions** (SHA-256) do weryfikacji integralności update’ów,
+- **Certyfikaty z czasem ważności** aby uniknąć m.in. ataków downgrade i freeze,
+- **Weryfikacja łańcucha certyfikatów**,
+- **Kanonizacja json**,
+- **Self-monitoring** własnych wpisów,
+- **Transparency log** do wykrywania udanych breachy systemu i ataków targeted supply chain,
+- Zapobieganie rollbackom dzięki **weryfikacji wersji update’u** przy pomocy **monotonic counteru TPMu**,
+- Bezpieczeczny transfer danych dzięki użyciu zarówno **HTTPS**, jak i **TLS**,
+- Aplikacja przetestowana i działająca na **Windowsie i Linuxie**,
+- Weryfikacja kodu aplikacji testami **SAST** i **SCA** za pomocą **SonarQube**,
+- Ciągła weryfikacja poprawnego działania kodu za pomocą **testów symulujących różne ataki i breache**, zautomatyzowanych przy pomocy Github Actions,
+- **Software Bill of Materials (SBOM)** -  dokładny spis wszystkich komponentów, bibliotek i zależności wchodzących w skład kodu aplikacji.
+
+---
+
+## Koncepty ulepszenia projektu w przyszłości
+- Możliwość wymiany algorytmu root w przyszłości na bardziej “quantum proof” - w naszej apce prawie że już wykonywalne
+- Transparency log - Gossiping (klienci wymieniają się między sobą informacjami o stanie loga) lub Witnesses (kilka bytów, np. firm, organizacji, regularnie pobiera loga i co-signuje go, potwierdzając jego autentyczność. Update przechodzi tylko, jeśli m z n klientów potwierdzi log),
+- Yubi-key - Użyć kilku kluczy, z których np. 3 na 5 muszą się zgadzać. Najważniejsze osoby odpowiedzialne za produkcję otrzymują po jednym.
+- Stage rollouts - 1% klientów dostaje update pierwszego dnia. Jeśli telemetria pokazuje potwierdza powodzenie, 10% drugiego dnia. Etc. Manifesty mogą zawierać rollout_percentage.
+- Klient nie tylko weryfikuje podpis - weryfikuje też, że build został zrobiony w zaufanym środowisku. Build server używa TEE (Trusted Execution Environment) (to dość świeży koncept).
+
+---
 
 ## Struktura
 
@@ -12,29 +67,6 @@ Monorepo dla projektu konkursowego Kościuszkon 2026 (Honeywell #1).
 - `certs/` – lokalne pliki TLS (generowane, nie commituj); `scripts/gen_local_https_cert.py`
 - `scripts/` – m.in. generowanie certu pod **HTTPS tylko na 127.0.0.1** (pokaz, bez domeny)
 
-### HTTPS lokalnie (bez kupowania domeny)
-
-**Zanim pierwszy raz odpalisz Server**, wygeneruj certyfikat i klucz do folderu `certs/`:
-
-- W PyCharm: konfiguracja uruchomienia **„Gen Local HTTPS Cert”** (ten sam skrypt co `python scripts/gen_local_https_cert.py` z katalogu głównego projektu).
-
-Powstaną **`certs/dev.crt`** i **`certs/dev.key`**. Dopiero wtedy **Server** wstanie na **`https://127.0.0.1:8000`**.
-
-**Klient** domyślnie łączy się pod ten sam adres. Biblioteka HTTP (`requests`) przy HTTPS **sprawdza certyfikat serwera**. Żeby uznać nasz **lokalny** cert (self-signed), podajemy jej ścieżkę do **tego samego** pliku `certs/dev.crt` — wtedy połączenie jest szyfrowane i klient nie krzyczy „nieznany certyfikat”. To nie jest żadne „wyłączanie zabezpieczeń”; po prostu mówimy klientowi: „ufaj dokładnie temu plikowi z repo”.
-
-`package_url` w manifeście może nadal pokazywać `http://…` — adres pobrania paczki jest **dopasowywany** do `UPDATE_SERVER_URL`, chyba że ustawisz `UPDATE_USE_RAW_PACKAGE_URL=true`.
-
-**Signing Machine** zostaje na **`http://127.0.0.1:9000`** (tylko komunikacja między procesami na jednym komputerze).
-
-### Jeśli **nie** wygenerujesz certów HTTPS
-
-To **nie blokuje** generowania kluczy root/signing (YubiKey mock, Keygen) — te są od **podpisów**, nie od TLS.
-
-Natomiast bez `certs/dev.crt` i `certs/dev.key`:
-
-- **Server** od razu się wyłączy i w konsoli wypisze ramkę **„STOP: brak certyfikatów HTTPS”**.
-- **Client** przy adresie `https://…` zatrzyma się na początku z komunikatem **„STOP: brak pliku certyfikatu pod HTTPS”**.
-
 ---
 
 ## Uruchomienie od zera
@@ -43,7 +75,15 @@ Natomiast bez `certs/dev.crt` i `certs/dev.key`:
 
 Uruchom **„Gen Local HTTPS Cert”** (albo `python scripts/gen_local_https_cert.py` z katalogu projektu).
 
-### 1. YubiKey → opcja `1 Keygen`
+### 1. Keygen
+
+Generuje klucze signing machine. Na pytanie o hasło naciśnij Enter (bez hasła) lub wpisz hasło.
+
+Jeśli ustawiłeś hasło, wpisz je też w run configu **Signing Machine** jako zmienną środowiskową `SIGNING_KEY_PASSWORD`.
+
+---
+
+### 2. YubiKey → opcja `1 Keygen`
 
 Generuje parę kluczy root (Ed25519 + ML-DSA). Na pytanie o PIN naciśnij Enter (bez PINu) lub wpisz hasło.
 
@@ -53,20 +93,12 @@ Po zakończeniu skopiuj wygenerowane klucze publiczne do `client/src/config.py`:
 
 ---
 
-### 2. Keygen
-
-Generuje klucze signing machine. Na pytanie o hasło naciśnij Enter (bez hasła) lub wpisz hasło.
-
-Jeśli ustawiłeś hasło, wpisz je też w run configu **Signing Machine** jako zmienną środowiskową `SIGNING_KEY_PASSWORD`.
-
----
-
 ### 3. YubiKey → opcja `2 Certify`
 
 Ceremonia podpisania certyfikatu — root key autoryzuje signing machine na 7 dni.
 
-- PIN YubiKey'a: ten sam co w kroku 1
-- Hasło signing machine: ten sam co w kroku 2
+- PIN YubiKey'a: ten sam co w kroku 2
+- Hasło signing machine: ten sam co w kroku 1
 - Symulacja dotyku: naciśnij Enter
 
 Efekt: powstaje `keys/signing_cert.json`.

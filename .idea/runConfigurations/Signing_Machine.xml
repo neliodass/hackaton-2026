@@ -9,7 +9,7 @@
       <env name="SIGNING_KEY_PASSWORD" value="test123" />
     </envs>
     <option name="SDK_HOME" value="" />
-    <option name="SDK_NAME" value="Python 3.12 (hackaton-2026)" />
+    <option name="SDK_NAME" value="Python 3.13 (PyCharmMiscProject)" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
     <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />
