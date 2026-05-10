@@ -69,6 +69,26 @@ def _fetch_signing_cert() -> None:
     except (requests.HTTPError, requests.Timeout) as exc:
         logger.error("Failed to fetch signing cert: %s", exc)
         return
+
+    try:
+        cert = response.json()
+    except ValueError:
+        logger.error(
+            "Signing machine returned non-JSON response for /signing-cert "
+            "(content-type=%s, first 80 chars: %r) — cert NOT overwritten",
+            response.headers.get("content-type", "?"),
+            response.text[:80],
+        )
+        return
+
+    required = {"issued_at", "signing_pubkey", "root_signatures", "valid_from", "valid_to"}
+    missing = required - cert.keys()
+    if missing:
+        logger.error(
+            "Signing cert response is missing required fields %s — cert NOT overwritten", missing
+        )
+        return
+
     SIGNING_CERT_PATH.write_text(response.text, encoding="utf-8")
     logger.info("Signing certificate saved to %s", SIGNING_CERT_PATH)
 
