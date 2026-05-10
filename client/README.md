@@ -24,11 +24,11 @@ python client/src/main.py
 
 Domyślne parametry można nadpisać przez env var lub argumenty CLI:
 ```
-python client/src/main.py --server-url http://127.0.0.1:8000 --local-version 1.0.0
+python client/src/main.py --server-url https://127.0.0.1:8000 --local-version 1.0.0
 ```
 
 | Env var | Domyślnie | Opis |
 |---|---|---|
-| `UPDATE_SERVER_URL` | `http://127.0.0.1:8000` | Adres serwera aktualizacji |
+| `UPDATE_SERVER_URL` | `https://127.0.0.1:8000` | Adres serwera (HTTPS). Najpierw wygeneruj `certs/dev.*` (Run „Gen Local HTTPS Cert”). Klient używa `certs/dev.crt`, żeby uznać ten sam cert co serwer. |
 | `UPDATE_LOCAL_VERSION` | `1.0.0` | Aktualna wersja aplikacji |
 | `UPDATE_REQUEST_TIMEOUT` | `10` | Timeout HTTP w sekundach |
