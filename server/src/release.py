@@ -3,6 +3,7 @@ import json
 import logging
 import secrets
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -118,6 +119,7 @@ def create_new_release(
     manifest: dict = {
         "id": release_id,
         "version": version,
+        "released_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "package_name": package_filename,
         "package_url": f"http://{HOST}:{PORT}/binary/{release_id}",
         **hashes,

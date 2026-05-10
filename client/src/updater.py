@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
@@ -113,10 +114,38 @@ def run_update_check(server_url: str, local_version: str, download_dir: Path) ->
 
     remote_version_raw = manifest.get("version")
     release_id = manifest.get("id")
+    released_at_raw = manifest.get("released_at")
 
     if not remote_version_raw or not release_id:
         logger.error("Latest manifest is missing required fields: version and/or id")
         return 1
+
+    # ------------------------------------------------------------------
+    # 2a. Freeze-attack check — reject manifests older than the threshold
+    # ------------------------------------------------------------------
+    if not released_at_raw:
+        logger.error(
+            "Manifest is missing 'released_at' field — possible freeze attack. Aborting."
+        )
+        return 1
+
+    try:
+        released_at = datetime.fromisoformat(released_at_raw.replace("Z", "+00:00"))
+    except ValueError:
+        logger.error("Manifest 'released_at' is not a valid ISO-8601 timestamp: %s", released_at_raw)
+        return 1
+
+    manifest_age = datetime.now(timezone.utc) - released_at
+    max_age = timedelta(days=config.MANIFEST_MAX_AGE_DAYS)
+    if manifest_age > max_age:
+        logger.error(
+            "[!] SECURITY: Manifest is too old (age=%s, max=%d days). "
+            "Possible freeze attack. Aborting.",
+            manifest_age,
+            config.MANIFEST_MAX_AGE_DAYS,
+        )
+        return 1
+    logger.info("Manifest freshness OK (released_at=%s, age=%s)", released_at_raw, manifest_age)
 
     # ------------------------------------------------------------------
     # 3. Version comparison

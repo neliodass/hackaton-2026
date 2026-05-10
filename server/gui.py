@@ -663,17 +663,34 @@ class App(tk.Tk):
             messagebox.showerror("Błąd", "Nieprawidłowy numer portu.")
             return
 
-        logging.info("Requesting signatures from signing machine…")
-        threading.Thread(target=request_signature_from_signing_machine, daemon=True).start()
+        self._btn_start.configure(state="disabled")
+        self._btn_stop.configure(state="disabled")
+        self._set_status("● Uruchamianie…", self.ORANGE)
 
         def _srv_log(line: str) -> None:
             self.after(0, self._append_log, line)
 
-        _srv.start(host, port, log_cb=_srv_log)
-        self._btn_start.configure(state="disabled")
+        def _worker():
+            request_signature_from_signing_machine()
+            try:
+                _srv.start(host, port, log_cb=_srv_log)
+                self.after(0, self._on_server_started, host, port)
+            except Exception as exc:
+                self.after(0, self._on_server_error, str(exc))
+
+        threading.Thread(target=_worker, daemon=True, name="srv-start").start()
+
+    def _on_server_started(self, host: str, port: int) -> None:
         self._btn_stop.configure(state="normal")
         self._set_status(f"● Działa  ·  http://{host}:{port}", self.GREEN)
         logging.info("Server process started on http://%s:%d", host, port)
+
+    def _on_server_error(self, msg: str) -> None:
+        self._btn_start.configure(state="normal")
+        self._btn_stop.configure(state="disabled")
+        self._set_status("● Błąd uruchamiania", self.RED)
+        logging.error("Server failed to start: %s", msg)
+        messagebox.showerror("Błąd serwera", f"Nie udało się uruchomić serwera:\n{msg}")
 
     def _stop_server(self) -> None:
         _srv.stop()
