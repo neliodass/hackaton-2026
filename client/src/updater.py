@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from urllib.parse import urljoin, urlparse
 
 from packaging import version
 from requests import RequestException, Timeout
@@ -33,6 +34,13 @@ def run_update_check(server_url: str, local_version: str, download_dir: Path) ->
         logger.error(
             "EMBEDDED_ROOT_PQ_PUBLIC_KEY_HEX is not set — run 'python -m yubikey_mock keygen' "
             "and paste keys/root/root_mldsa_pub.hex into config.py (or env var)"
+        )
+        return 1
+
+    if server_url.strip().lower().startswith("https") and not config.LOCAL_HTTPS_CERT_PEM.is_file():
+        logger.error(
+            "Brak certyfikatów HTTPS!\nOczekiwany plik: %s",
+            config.LOCAL_HTTPS_CERT_PEM,
         )
         return 1
 
@@ -122,6 +130,12 @@ def run_update_check(server_url: str, local_version: str, download_dir: Path) ->
     remote_version_raw = manifest.get("version")
     package_url = manifest.get("package_url")
     package_name = manifest.get("package_name", "update.zip")
+
+    if not config.UPDATE_USE_RAW_PACKAGE_URL and package_url:
+        path = urlparse(package_url).path
+        if path:
+            package_url = urljoin(server_url.rstrip("/") + "/", path.lstrip("/"))
+            logger.info("Package URL aligned with server (scheme/host): %s", package_url)
 
     if not remote_version_raw or not package_url:
         logger.error("Manifest is missing required fields: version and package_url")

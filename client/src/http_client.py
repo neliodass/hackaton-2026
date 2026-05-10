@@ -13,7 +13,11 @@ logger = logging.getLogger("update-client")
 def fetch_manifest(server_url: str) -> dict:
     manifest_url = urljoin(server_url.rstrip("/") + "/", "manifest")
     logger.info("Downloading manifest from %s", manifest_url)
-    response = requests.get(manifest_url, timeout=config.REQUEST_TIMEOUT_SECONDS)
+    response = requests.get(
+        manifest_url,
+        timeout=config.REQUEST_TIMEOUT_SECONDS,
+        verify=config.get_tls_verify(),
+    )
     response.raise_for_status()
     return response.json()
 
@@ -21,7 +25,11 @@ def fetch_manifest(server_url: str) -> dict:
 def fetch_signature(server_url: str) -> bytes:
     sig_url = server_url.rstrip("/") + "/manifest.sig"
     logger.info("Downloading manifest signature from %s", sig_url)
-    response = requests.get(sig_url, timeout=config.REQUEST_TIMEOUT_SECONDS)
+    response = requests.get(
+        sig_url,
+        timeout=config.REQUEST_TIMEOUT_SECONDS,
+        verify=config.get_tls_verify(),
+    )
     response.raise_for_status()
     return response.content
 
@@ -29,7 +37,11 @@ def fetch_signature(server_url: str) -> bytes:
 def fetch_pq_signature(server_url: str) -> bytes:
     sig_url = server_url.rstrip("/") + "/manifest.pq.sig"
     logger.info("Downloading hybrid ML-DSA manifest signature from %s", sig_url)
-    response = requests.get(sig_url, timeout=config.REQUEST_TIMEOUT_SECONDS)
+    response = requests.get(
+        sig_url,
+        timeout=config.REQUEST_TIMEOUT_SECONDS,
+        verify=config.get_tls_verify(),
+    )
     response.raise_for_status()
     return response.content
 
@@ -37,7 +49,11 @@ def fetch_pq_signature(server_url: str) -> bytes:
 def fetch_signing_cert(server_url: str) -> dict:
     url = server_url.rstrip("/") + "/signing-cert"
     logger.info("Downloading signing certificate from %s", url)
-    response = requests.get(url, timeout=config.REQUEST_TIMEOUT_SECONDS)
+    response = requests.get(
+        url,
+        timeout=config.REQUEST_TIMEOUT_SECONDS,
+        verify=config.get_tls_verify(),
+    )
     response.raise_for_status()
     return response.json()
 
@@ -60,7 +76,7 @@ def download_update_package(
         package_url,
         stream=True,
         timeout=config.REQUEST_TIMEOUT_SECONDS,
-        verify=True,
+        verify=config.get_tls_verify(),
     )
     response.raise_for_status()
 
