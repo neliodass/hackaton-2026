@@ -2,4 +2,7 @@ fastapi
 uvicorn
 click
 cryptography
+dilithium-py
 pydantic
+semgrep
+bandit

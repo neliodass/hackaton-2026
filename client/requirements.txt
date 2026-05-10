@@ -1,4 +1,7 @@
 cryptography
+dilithium-py
 requests
 certifi
 packaging
+semgrep
+bandit
