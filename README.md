@@ -2,6 +2,8 @@
 
 Monorepo dla projektu konkursowego Kościuszkon 2026 (Honeywell #1).
 
+Prezentacja PowerPoint: [Prezentacja](MiśkaLubidotNet.pptx)
+
 ## Opis
 **UPDT Secure** to narzędzie pozwalające na bezpieczne dostarczanie aktualizacji oprogramowania do użytkowników końcowych. 
 Składa się z trzech głównych elementów: serwera dystrybucji (udostępnia manifesty i pakiety), klienta desktopowego (interfejs graficzny i 
